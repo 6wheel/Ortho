@@ -1,5 +1,5 @@
 # Ortho
-Effortlessly generate in seconds accurate, configurable orthographic templates for 3D modelling from existing 3D models including mods for Assetto Corsa and beamNG Drive. Drag and drop. One click, high res PNG output. 
+Effortlessly generate in seconds accurate, configurable orthographic templates for 3D modelling from existing 3D models including mods for Assetto Corsa and beamNG Drive. Drag and drop. One click, high res PNG output. Totally Free, nothing needs to be purchased. 
 
 Requires only Python and a browser. Accepts obj, .dae, .stl, .gltf, .glb, .kn5 
 
