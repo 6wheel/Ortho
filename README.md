@@ -3,5 +3,5 @@ Effortlessly generate in seconds accurate, configurable orthographic templates f
 
 Requires only Python and a browser. Accepts obj, .dae, .stl, .gltf, .glb, .kn5 
 
-No command entering, run Start App BAT file, rest is run in browser. 
-<img width="2700" height="8599" alt="91950960-6c17-4e42-96e5-86d0a614cbdc" src="https://github.com/user-attachments/assets/417e2f98-11cb-4897-a2bb-5c5da9ea19b6" />
+No command entering, run Start App BAT file, rest is run in browser.
+<img width="2757" height="8996" alt="ec072281-66a3-44ce-abb4-b7b0e4445136" src="https://github.com/user-attachments/assets/cac405f2-8f4e-4f5b-871d-af1e31ea14c4" />
