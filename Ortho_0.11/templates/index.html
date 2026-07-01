@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Orthographic Template Generator</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Arial, sans-serif; max-width: 900px; margin: 30px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 1.4em; }
+  .section { margin-bottom: 24px; padding: 16px; border: 1px solid #ddd; border-radius: 8px; }
+  .section h2 { margin-top: 0; font-size: 1.05em; }
+  #drop_zone { border: 2px dashed #999; border-radius: 8px; padding: 30px; text-align: center; color: #666; cursor: pointer; }
+  #drop_zone.dragover { background: #eef; border-color: #55f; }
+  #part_filter { width: 100%; padding: 6px 8px; margin-bottom: 8px; box-sizing: border-box; }
+  #part_list_box { border: 1px solid #ccc; border-radius: 6px; height: 280px; overflow-y: auto; padding: 4px; }
+  .part_row { display: flex; align-items: center; padding: 3px 6px; font-size: 0.92em; }
+  .part_row:hover { background: #f3f3f3; }
+  .part_row label { margin-left: 6px; cursor: pointer; word-break: break-all; }
+  .btn_row { display: flex; gap: 8px; margin-bottom: 8px; }
+  button { padding: 6px 14px; border-radius: 5px; border: 1px solid #999; background: #f5f5f5; cursor: pointer; }
+  button:hover { background: #eaeaea; }
+  button.primary { background: #2a6df5; color: white; border-color: #2a6df5; font-weight: bold; padding: 10px 24px; font-size: 1.05em; }
+  button.primary:hover { background: #1d5be0; }
+  .views_grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .color_row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .color_row label { display: flex; align-items: center; gap: 6px; }
+  #status { margin: 10px 0; font-size: 0.95em; color: #555; min-height: 1.2em; white-space: pre-line; }
+  #result_img { max-width: 100%; border: 1px solid #ccc; margin-top: 10px; }
+  .hidden { display: none; }
+  .preset_btn { width: 28px; height: 28px; border-radius: 4px; cursor: pointer; border: 1px solid #999; }
+  #scale_val { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Orthographic Template Generator</h1>
+
+<div class="section">
+  <h2>1. Model File</h2>
+  <div id="drop_zone">Drop a model file or a zipped mod folder here, or click to choose one<br>
+    <small>(.obj, .dae, .stl, .gltf, .glb, .kn5, or a .zip containing one of those)</small>
+  </div>
+  <input type="file" id="file_input" class="hidden" accept=".obj,.dae,.stl,.gltf,.glb,.kn5,.zip">
+  <div id="status"></div>
+</div>
+
+<div class="section hidden" id="parts_section">
+  <h2>2. Parts</h2>
+  <p style="font-size:0.9em;color:#666;margin-top:-8px;">
+    All parts are included by default. If the generated image looks wrong
+    (a stray blob, missing wheel, clutter through a window), untick the
+    suspect part(s) below and click Generate again.
+  </p>
+  <input type="text" id="part_filter" placeholder="Type to filter part names...">
+  <div class="btn_row">
+    <button onclick="selectAll(true)">Select All</button>
+    <button onclick="selectAll(false)">Deselect All</button>
+    <span id="part_count" style="margin-left:auto;align-self:center;color:#666;font-size:0.9em;"></span>
+  </div>
+  <div id="part_list_box"></div>
+</div>
+
+<div class="section hidden" id="options_section">
+  <h2>3. Views</h2>
+  <div class="views_grid">
+    <label><input type="checkbox" class="view_cb" value="front" checked> Front</label>
+    <label><input type="checkbox" class="view_cb" value="back" checked> Back</label>
+    <label><input type="checkbox" class="view_cb" value="left" checked> Left</label>
+    <label><input type="checkbox" class="view_cb" value="right"> Right</label>
+    <label><input type="checkbox" class="view_cb" value="top" checked> Top</label>
+    <label><input type="checkbox" class="view_cb" value="bottom"> Bottom</label>
+    <label><input type="checkbox" id="rib_cb"> Cross-section cut(s)</label>
+  </div>
+  <div class="color_row" style="margin-top:8px;">
+    <label>Number of cuts
+      <input type="range" id="rib_cuts_slider" min="1" max="8" value="1"
+             oninput="document.getElementById('rib_cuts_val').textContent=this.value">
+    </label>
+    <span id="rib_cuts_val">1</span>
+    <span style="color:#666;font-size:0.85em;">(1 = a single cut at the exact midpoint; each step up adds evenly-spaced cuts along the body)</span>
+  </div>
+
+  <h2 style="margin-top:20px;">3b. Orientation (only touch if the model loads facing the wrong way)</h2>
+  <div class="color_row">
+    <label>Up axis
+      <select id="up_axis_select">
+        <option value="y" selected>Y (most common)</option>
+        <option value="z">Z</option>
+        <option value="x">X</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="front_flip_cb"> Flip front/back (use if "front" actually shows the back)</label>
+    <label>Rotate
+      <input type="number" id="rotation_deg_input" value="0" step="5" style="width:60px;"> degrees
+      <span style="opacity:0.7; font-size:0.85em;">(use if the model is sideways or at an angle — e.g. "front" shows a 3/4 view instead of straight-on)</span>
+    </label>
+  </div>
+
+  <h2 style="margin-top:20px;">4. Colors</h2>
+  <div class="color_row">
+    <div class="preset_btn" style="background:#fff;border:2px solid #000;" onclick="setColors('#FFFFFF','#000000')" title="White background, black lines"></div>
+    <div class="preset_btn" style="background:#000;border:2px solid #fff;" onclick="setColors('#000000','#FFFFFF')" title="Black background, white lines"></div>
+    <label>Background <input type="color" id="bg_color" value="#FFFFFF"></label>
+    <label>Lines <input type="color" id="line_color" value="#000000"></label>
+  </div>
+
+  <h2 style="margin-top:20px;">5. Detail &amp; Output</h2>
+  <div class="color_row">
+    <label><input type="checkbox" id="ao_cb"> Ambient occlusion detail (darkens creases, panel gaps, and recesses)</label>
+  </div>
+  <p style="font-size:0.85em;color:#666;margin:4px 0 0 0;">
+    This adds real extra time to Generate — typically 30 seconds to a
+    couple of minutes on top of the normal render, depending on the
+    model's size. That's expected, not a crash; the window will update
+    once it's done.
+  </p>
+  <div class="color_row" style="margin-top:10px;">
+    <label>Output scale <input type="range" id="scale_slider" min="25" max="100" value="100" oninput="document.getElementById('scale_val').textContent=this.value+'%'"></label>
+    <span id="scale_val">100%</span>
+  </div>
+</div>
+
+<div class="section hidden" id="generate_section">
+  <button class="primary" onclick="generate()">Generate</button>
+  <div id="gen_status" style="margin-top:10px;"></div>
+  <div id="progress_wrap" class="hidden" style="margin:8px 0; background:#eee; border-radius:4px; height:8px; width:100%; max-width:600px;">
+    <div id="progress_bar" style="height:8px; border-radius:4px; background:#2980b9; width:0%; transition:width 0.3s;"></div>
+  </div>
+  <img id="result_img" class="hidden">
+  <div id="download_row" class="hidden" style="margin-top:8px;">
+    <a id="download_link" download="orthographic_template.png">Download image</a>
+  </div>
+</div>
+
+<script>
+let sessionId = null;
+let allPartNames = [];
+let excludedParts = new Set();
+
+const dropZone = document.getElementById('drop_zone');
+const fileInput = document.getElementById('file_input');
+
+// Load global preferences (colors, views, scale, AO, orientation) on page
+// load and apply them to the controls, so they're remembered across visits
+// regardless of which file gets loaded next (explicitly requested as
+// GLOBAL, unlike the per-file part selections).
+function applyGlobalPrefs(prefs) {
+  document.querySelectorAll('.view_cb').forEach(cb => {
+    cb.checked = prefs.views.includes(cb.value);
+  });
+  document.getElementById('rib_cb').checked = !!prefs.include_rib;
+  document.getElementById('rib_cuts_slider').value = prefs.rib_cuts || 1;
+  document.getElementById('rib_cuts_val').textContent = prefs.rib_cuts || 1;
+  document.getElementById('bg_color').value = prefs.bg_color || '#FFFFFF';
+  document.getElementById('line_color').value = prefs.line_color || '#000000';
+  document.getElementById('scale_slider').value = prefs.scale_pct || 100;
+  document.getElementById('scale_val').textContent = (prefs.scale_pct || 100) + '%';
+  document.getElementById('ao_cb').checked = !!prefs.ao;
+  document.getElementById('up_axis_select').value = prefs.up_axis || 'y';
+  document.getElementById('front_flip_cb').checked = !!prefs.front_flip;
+  document.getElementById('rotation_deg_input').value = prefs.rotation_deg || 0;
+}
+
+fetch('/preferences')
+  .then(r => r.json())
+  .then(prefs => applyGlobalPrefs(prefs))
+  .catch(() => {});  // non-fatal if this fails; controls just keep their defaults
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+function setStatus(msg, isError) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.style.color = isError ? '#c0392b' : '#555';
+}
+
+function handleFile(file) {
+  setStatus('Uploading and parsing "' + file.name + '"... this can take a moment for large files.');
+  document.getElementById('parts_section').classList.add('hidden');
+  document.getElementById('options_section').classList.add('hidden');
+  document.getElementById('generate_section').classList.add('hidden');
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  fetch('/upload', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { setStatus(data.error, true); return; }
+      sessionId = data.session_id;
+      allPartNames = data.part_names;
+      excludedParts = new Set(data.excluded || []);
+      let statusMsg = 'Loaded "' + data.filename + '" — ' + data.part_names.length + ' parts, ' +
+                 data.face_count.toLocaleString() + ' faces.';
+      if (data.warning) { statusMsg += '\n\u26A0 ' + data.warning; }
+      setStatus(statusMsg);
+      renderPartList();
+      document.getElementById('parts_section').classList.remove('hidden');
+      document.getElementById('options_section').classList.remove('hidden');
+      document.getElementById('generate_section').classList.remove('hidden');
+    })
+    .catch(err => setStatus('Upload failed: ' + err, true));
+}
+
+function renderPartList(filterText) {
+  const box = document.getElementById('part_list_box');
+  box.innerHTML = '';
+  const ft = (filterText || '').toLowerCase();
+  let shown = 0;
+  allPartNames.forEach(name => {
+    if (ft && !name.toLowerCase().includes(ft)) return;
+    shown++;
+    const row = document.createElement('div');
+    row.className = 'part_row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !excludedParts.has(name);
+    cb.id = 'part_' + shown;
+    cb.addEventListener('change', () => {
+      if (cb.checked) excludedParts.delete(name); else excludedParts.add(name);
+    });
+    const label = document.createElement('label');
+    label.setAttribute('for', cb.id);
+    label.textContent = name;
+    row.appendChild(cb);
+    row.appendChild(label);
+    box.appendChild(row);
+  });
+  document.getElementById('part_count').textContent =
+    shown + ' of ' + allPartNames.length + ' shown — ' +
+    (allPartNames.length - excludedParts.size) + ' included';
+}
+
+document.getElementById('part_filter').addEventListener('input', e => renderPartList(e.target.value));
+
+function selectAll(state) {
+  const filterText = document.getElementById('part_filter').value.toLowerCase();
+  allPartNames.forEach(name => {
+    if (filterText && !name.toLowerCase().includes(filterText)) return;
+    if (state) excludedParts.delete(name); else excludedParts.add(name);
+  });
+  renderPartList(document.getElementById('part_filter').value);
+}
+
+function setColors(bg, line) {
+  document.getElementById('bg_color').value = bg;
+  document.getElementById('line_color').value = line;
+}
+
+function generate() {
+  if (!sessionId) return;
+  const views = Array.from(document.querySelectorAll('.view_cb:checked')).map(cb => cb.value);
+  const includeRib = document.getElementById('rib_cb').checked;
+  if (views.length === 0 && !includeRib) {
+    document.getElementById('gen_status').textContent = 'Pick at least one view (or the rib cross-section).';
+    document.getElementById('gen_status').style.color = '#c0392b';
+    return;
+  }
+
+  document.getElementById('gen_status').textContent = 'Starting…';
+  document.getElementById('gen_status').style.color = '#555';
+  document.getElementById('result_img').classList.add('hidden');
+  document.getElementById('download_row').classList.add('hidden');
+
+  const progressBar = document.getElementById('progress_bar');
+  const progressWrap = document.getElementById('progress_wrap');
+  progressWrap.classList.remove('hidden');
+  progressBar.style.width = '0%';
+
+  const payload = {
+    session_id: sessionId,
+    excluded: Array.from(excludedParts),
+    views: views,
+    include_rib: includeRib,
+    rib_cuts: parseInt(document.getElementById('rib_cuts_slider').value),
+    bg_color: document.getElementById('bg_color').value,
+    line_color: document.getElementById('line_color').value,
+    scale_pct: parseInt(document.getElementById('scale_slider').value),
+    ao: document.getElementById('ao_cb').checked,
+    up_axis: document.getElementById('up_axis_select').value,
+    front_flip: document.getElementById('front_flip_cb').checked,
+    rotation_deg: parseFloat(document.getElementById('rotation_deg_input').value) || 0,
+  };
+
+  // SSE via fetch+ReadableStream (EventSource doesn't support POST).
+  fetch('/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(resp => {
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    function read() {
+      reader.read().then(({ done, value }) => {
+        if (done) return;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          let ev;
+          try { ev = JSON.parse(line.slice(5).trim()); } catch(e) { continue; }
+          document.getElementById('gen_status').textContent = ev.message || '';
+          progressBar.style.width = Math.round((ev.progress || 0) * 100) + '%';
+          if (ev.error) {
+            document.getElementById('gen_status').textContent = ev.error;
+            document.getElementById('gen_status').style.color = '#c0392b';
+            progressWrap.classList.add('hidden');
+            return;
+          }
+          if (ev.done && ev.image_url) {
+            document.getElementById('gen_status').textContent = 'Done.';
+            progressWrap.classList.add('hidden');
+            const img = document.getElementById('result_img');
+            img.src = ev.image_url + '?t=' + Date.now();
+            img.classList.remove('hidden');
+            const link = document.getElementById('download_link');
+            link.href = ev.image_url;
+            document.getElementById('download_row').classList.remove('hidden');
+            return;
+          }
+        }
+        read();
+      });
+    }
+    read();
+  }).catch(err => {
+    document.getElementById('gen_status').textContent = 'Render request failed: ' + err;
+    document.getElementById('gen_status').style.color = '#c0392b';
+    progressWrap.classList.add('hidden');
+  });
+}
+</script>
+
+</body>
+</html>

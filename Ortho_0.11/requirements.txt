@@ -1,0 +1,12 @@
+flask
+trimesh
+pyrender
+PyOpenGL
+PyOpenGL_accelerate
+scikit-image
+numpy
+scipy
+pycollada
+matplotlib
+rtree
+embreex
